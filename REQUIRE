@@ -1,0 +1,10 @@
+LCPSim
+RigidBodyDynamics
+MeshCatMechanisms
+Parameters
+MathProgBase
+JuMP
+CoordinateTransformations
+Flux
+FluxExtensions
+ConditionalJuMP
