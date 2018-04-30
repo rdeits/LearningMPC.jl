@@ -18,7 +18,7 @@ function BoxAtlas()
     floating_base.position_bounds .= RigidBodyDynamics.Bounds(-10, 10)
     floating_base.velocity_bounds .= RigidBodyDynamics.Bounds(-1000, 1000)
     floating_base.effort_bounds .= RigidBodyDynamics.Bounds(0, 0)
-    env = LCPSim.parse_contacts(mechanism, box_atlas_urdf, 1.0, :xz)
+    env = LCPSim.parse_contacts(mechanism, box_atlas_urdf, 1.0, :yz)
     feet = Dict(:left => findbody(mechanism, "lf"),
                 :right => findbody(mechanism, "rf"))
     hands = Dict(:left => findbody(mechanism, "lh"),
@@ -95,7 +95,7 @@ function LearningMPC.MPCParams(robot::BoxAtlas)
         lcp_solver=GurobiSolver(Gurobi.Env(), OutputFlag=0))
 end
 
-function LearningMPC.LQRSolution(robot::BoxAtlas, params::MPCParams=MPCParams(robot), zero_base_x=true)
+function LearningMPC.LQRSolution(robot::BoxAtlas, params::MPCParams=MPCParams(robot), zero_base_x=false)
     xstar = nominal_state(robot)
     Q, R = default_costs(robot)
     lqrsol = LearningMPC.LQRSolution(xstar, Q, R, params.Δt, 

@@ -25,6 +25,7 @@
   </link>
 
   <joint name="root_to_floor" type="fixed">
+    <origin rpy="0 0 -1.5707963267948966"/>
     <parent link="root"/>
     <child link="floor"/>
   </joint>
@@ -50,8 +51,8 @@
     </collision>
   </link>
 
-  <joint name="root_to_wall" type="fixed">
-    <parent link="root"/>
+  <joint name="floor_to_wall" type="fixed">
+    <parent link="floor"/>
     <child link="wall"/>
   </joint>
 
@@ -71,7 +72,7 @@
 
   <joint name="floating_base" type="planar">
     <axis xyz="0 -1 0"/>
-    <parent link="root"/>
+    <parent link="floor"/>
     <child link="core"/>
   </joint>
 
