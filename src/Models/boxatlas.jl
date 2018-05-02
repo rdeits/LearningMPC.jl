@@ -19,10 +19,10 @@ function BoxAtlas()
     floating_base.velocity_bounds .= RigidBodyDynamics.Bounds(-1000, 1000)
     floating_base.effort_bounds .= RigidBodyDynamics.Bounds(0, 0)
     env = LCPSim.parse_contacts(mechanism, box_atlas_urdf, 1.0, :yz)
-    feet = Dict(:left => findbody(mechanism, "lf"),
-                :right => findbody(mechanism, "rf"))
-    hands = Dict(:left => findbody(mechanism, "lh"),
-                 :right => findbody(mechanism, "rh"))
+    feet = Dict(:left => findbody(mechanism, "l_foot_sole"),
+                :right => findbody(mechanism, "r_foot_sole"))
+    hands = Dict(:left => findbody(mechanism, "l_hand_mount"),
+                 :right => findbody(mechanism, "r_hand_mount"))
     floor = findbody(mechanism, "floor")
     wall = findbody(mechanism, "wall")
     LCPSim.filter_contacts!(env, mechanism, 
@@ -36,11 +36,13 @@ end
 function nominal_state(robot::BoxAtlas)
     m = mechanism(robot)
     xstar = MechanismState{Float64}(m)
-    set_configuration!(xstar, findjoint(m, "floating_base"), [0, 1.05, 0])
-    set_configuration!(xstar, findjoint(m, "core_to_lf_extension"), [0.8])
-    set_configuration!(xstar, findjoint(m, "core_to_rf_extension"), [0.8])
-    set_configuration!(xstar, findjoint(m, "core_to_lh_extension"), [0.5])
-    set_configuration!(xstar, findjoint(m, "core_to_rh_extension"), [0.5])
+    set_configuration!(xstar, findjoint(m, "floating_base"), [0, 0.82, 0])
+    set_configuration!(xstar, findjoint(m, "pelvis_to_l_foot_sole_extension"), [0.82])
+    set_configuration!(xstar, findjoint(m, "pelvis_to_r_foot_sole_extension"), [0.82])
+    set_configuration!(xstar, findjoint(m, "pelvis_to_l_hand_mount_rotation"), [0.2])
+    set_configuration!(xstar, findjoint(m, "pelvis_to_l_hand_mount_extension"), [0.7])
+    set_configuration!(xstar, findjoint(m, "pelvis_to_r_hand_mount_rotation"), [0.2])
+    set_configuration!(xstar, findjoint(m, "pelvis_to_r_hand_mount_extension"), [0.7])
     xstar
 end
 
@@ -49,14 +51,14 @@ function default_costs(robot::BoxAtlas, r=0.005)
 
     qq = zeros(num_positions(x))
     qq[configuration_range(x, findjoint(x.mechanism, "floating_base"))] = [0, 10, 800]
-    qq[configuration_range(x, findjoint(x.mechanism, "core_to_rh_extension"))]  .= 0.5
-    qq[configuration_range(x, findjoint(x.mechanism, "core_to_lh_extension"))]  .= 0.5
-    qq[configuration_range(x, findjoint(x.mechanism, "core_to_rh_rotation"))]  .= 0.5
-    qq[configuration_range(x, findjoint(x.mechanism, "core_to_lh_rotation"))]  .= 0.5
-    qq[configuration_range(x, findjoint(x.mechanism, "core_to_rf_extension"))]  .= 0.5
-    qq[configuration_range(x, findjoint(x.mechanism, "core_to_lf_extension"))]  .= 0.5
-    qq[configuration_range(x, findjoint(x.mechanism, "core_to_rf_rotation"))]  .= 0.1
-    qq[configuration_range(x, findjoint(x.mechanism, "core_to_lf_rotation"))]  .= 0.1
+    qq[configuration_range(x, findjoint(x.mechanism, "pelvis_to_r_hand_mount_extension"))]  .= 0.5
+    qq[configuration_range(x, findjoint(x.mechanism, "pelvis_to_l_hand_mount_extension"))]  .= 0.5
+    qq[configuration_range(x, findjoint(x.mechanism, "pelvis_to_r_hand_mount_rotation"))]  .= 0.5
+    qq[configuration_range(x, findjoint(x.mechanism, "pelvis_to_l_hand_mount_rotation"))]  .= 0.5
+    qq[configuration_range(x, findjoint(x.mechanism, "pelvis_to_r_foot_sole_extension"))]  .= 0.5
+    qq[configuration_range(x, findjoint(x.mechanism, "pelvis_to_l_foot_sole_extension"))]  .= 0.5
+    qq[configuration_range(x, findjoint(x.mechanism, "pelvis_to_r_foot_sole_rotation"))]  .= 0.1
+    qq[configuration_range(x, findjoint(x.mechanism, "pelvis_to_l_foot_sole_rotation"))]  .= 0.1
 
     qv = fill(0.01, num_velocities(x))
     qv[velocity_range(x, findjoint(x.mechanism, "floating_base"))] = [10, 1, 50]
@@ -64,15 +66,15 @@ function default_costs(robot::BoxAtlas, r=0.005)
     Q = diagm(vcat(qq, qv))
 
     # minimize (rx - lx)^2 = rx^2 - 2rxlx + lx^2
-    rx = configuration_range(x, findjoint(x.mechanism, "core_to_rf_extension"))
-    lx = configuration_range(x, findjoint(x.mechanism, "core_to_lf_extension"))
+    rx = configuration_range(x, findjoint(x.mechanism, "pelvis_to_r_foot_sole_extension"))
+    lx = configuration_range(x, findjoint(x.mechanism, "pelvis_to_l_foot_sole_extension"))
     w_centering = 1
     Q[rx, rx] += w_centering
     Q[lx, lx] += w_centering
     Q[lx, rx] -= w_centering
     Q[rx, lx] -= w_centering
-    rθ = configuration_range(x, findjoint(x.mechanism, "core_to_rf_rotation"))
-    lθ = configuration_range(x, findjoint(x.mechanism, "core_to_lf_rotation"))
+    rθ = configuration_range(x, findjoint(x.mechanism, "pelvis_to_r_foot_sole_rotation"))
+    lθ = configuration_range(x, findjoint(x.mechanism, "pelvis_to_l_foot_sole_rotation"))
     w_centering = 1
     Q[rθ, rθ] += w_centering
     Q[lθ, lθ] += w_centering
