@@ -94,7 +94,11 @@ function run_mpc(x0::MechanismState,
     _, results_opt = LCPSim.optimize(x0, env, params.Δt, params.horizon, model)
     @objective model Min cost(x0, results_opt)
 
-    warmstart_costs = run_warmstarts!(model, results_opt, x0, env, params, cost, warmstart_controllers)
+    warmstart_costs = if isempty(warmstart_controllers)
+        Float64[]
+    else
+        run_warmstarts!(model, results_opt, x0, env, params, cost, warmstart_controllers)
+    end
     ConditionalJuMP.handle_constant_objective!(model)
     try
         solve(model, suppress_warnings=true)

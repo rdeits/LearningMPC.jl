@@ -127,3 +127,64 @@ function (c::LearnedCost)(x0::StateLike, results::AbstractVector{<:LCPSim.LCPUpd
     q0, q = c.tangent_net(Vector(x0))
     lqrcost + Flux.Tracker.data(q0)[] + vec(Flux.Tracker.data(q))' * Vector(results[end].state)
 end
+
+function evaluate_controller(controller, 
+                             state::MechanismState, 
+                             env::LCPSim.Environment,
+                             lqrsol::LQRSolution,
+                             Δt = 0.01,
+                             horizon = 200, 
+                             solver = GurobiSolver(Gurobi.Env(), OutputFlag=0))
+    results = LCPSim.simulate(state, controller, env, Δt, horizon, solver)
+    running_cost = sum(results) do result
+        δx = Vector(result.state) - lqrsol.x0
+        δu = result.input - lqrsol.u0
+        δx' * lqrsol.Q * δx + δu' * lqrsol.R * δu
+    end
+    δxf = Vector(results[end].state) - lqrsol.x0
+    terminal_cost = δxf' * lqrsol.S * δxf
+    @assert (terminal_cost + running_cost) ≈ lqr_cost(lqrsol, results)
+    (running_cost, terminal_cost, configuration(results[end].state), velocity(results[end].state))
+end
+
+function run_evaluations(controller, 
+                         controller_label::AbstractString,
+                         robot::AbstractModel, 
+                         lqrsol::LQRSolution,
+                         q_ranges::AbstractVector{<:Tuple{Integer, AbstractVector}},
+                         v_ranges::AbstractVector{<:Tuple{Integer, AbstractVector}};
+                         Δt = 0.01, horizon = 200, solver = GurobiSolver(Gurobi.Env(), OutputFlag=0))
+    x_nominal = nominal_state(robot)
+    state = MechanismState(mechanism(robot))
+    ranges = vcat(getindex.(q_ranges, 2), getindex.(v_ranges, 2))
+    q0 = copy(configuration(state))
+    v0 = copy(velocity(state))
+    results = DataFrame(controller=String[], 
+                        q0=Vector{Float64}[],
+                        v0=Vector{Float64}[],
+                        Δt=Float64[],
+                        horizon=Int[],
+                        qf=Vector{Float64}[],
+                        vf=Vector{Float64}[],
+                        running_cost=Float64[],
+                        terminal_cost=Float64[])
+    @showprogress for evaluation_values in product(ranges...)
+        q0 .= configuration(x_nominal)
+        v0 .= velocity(x_nominal)
+        for i in 1:length(q_ranges)
+            q0[q_ranges[i][1]] = evaluation_values[i]
+        end
+        for i in 1:length(v_ranges)
+            v0[v_ranges[i][1]] = evaluation_values[i + length(q_ranges)]
+        end
+        set_configuration!(state, q0)
+        set_velocity!(state, v0)
+        running_cost, terminal_cost, qf, vf = evaluate_controller(controller, state, environment(robot),
+                                           lqrsol, Δt, horizon, solver)
+        push!(results, [controller_label, q0, v0, Δt, horizon, qf, vf, running_cost, terminal_cost])
+    end
+    results
+end
+
+
+

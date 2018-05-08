@@ -13,6 +13,10 @@ using CoordinateTransformations: AffineMap
 using Flux
 using FluxExtensions
 import ConditionalJuMP
+using Base.Iterators: product
+using DataFrames: DataFrame
+using ProgressMeter
+using Gurobi
 
 export playback,
        MPCParams,
