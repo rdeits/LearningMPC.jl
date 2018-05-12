@@ -91,8 +91,8 @@ function LearningMPC.MPCParams(robot::BoxAtlas)
         Δt=0.05,
         horizon=10,
         mip_solver=GurobiSolver(Gurobi.Env(), OutputFlag=0,
-            TimeLimit=5,
-            MIPGap=1e-1,
+            TimeLimit=10,
+            MIPGap=1e-2,
             FeasibilityTol=1e-3),
         lcp_solver=GurobiSolver(Gurobi.Env(), OutputFlag=0))
 end
