@@ -124,8 +124,8 @@ function (c::LearnedCost)(x0::StateLike, results::AbstractVector{<:LCPSim.LCPUpd
     lqrcost = sum((r.state.state .- lqr.x0)' * lqr.Q * (r.state.state .- lqr.x0) +
                   (r.input .- lqr.u0)' * lqr.R * (r.input .- lqr.u0)
                   for r in results)
-    q0, q = c.tangent_net(Vector(x0))
-    lqrcost + Flux.Tracker.data(q0)[] + vec(Flux.Tracker.data(q))' * Vector(results[end].state)
+    q0, q = c.tangent_net(qv(x0))
+    lqrcost + Flux.Tracker.data(q0)[] + vec(Flux.Tracker.data(q))' * qv(results[end].state)
 end
 
 function evaluate_controller(controller, 
@@ -137,11 +137,11 @@ function evaluate_controller(controller,
                              solver = GurobiSolver(Gurobi.Env(), OutputFlag=0))
     results = LCPSim.simulate(state, controller, env, Δt, horizon, solver)
     running_cost = sum(results) do result
-        δx = Vector(result.state) - lqrsol.x0
+        δx = qv(result.state) - lqrsol.x0
         δu = result.input - lqrsol.u0
         δx' * lqrsol.Q * δx + δu' * lqrsol.R * δu
     end
-    δxf = Vector(results[end].state) - lqrsol.x0
+    δxf = qv(results[end].state) - lqrsol.x0
     terminal_cost = δxf' * lqrsol.S * δxf
     @assert (terminal_cost + running_cost) ≈ lqr_cost(lqrsol, results)
     (running_cost, terminal_cost, configuration(results[end].state), velocity(results[end].state))

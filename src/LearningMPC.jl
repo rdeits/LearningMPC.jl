@@ -36,6 +36,8 @@ struct LQRSolution{T} <: Function
     Δt::T
 end
 
+qv(x::Union{MechanismState, LCPSim.StateRecord}) = vcat(Vector(configuration(x)), Vector(velocity(x)))
+
 function LQRSolution(x0::MechanismState{T}, Q, R, Δt, contacts::AbstractVector{<:Point3D}=Point3D[]) where T
     u0 = nominal_input(x0, contacts)
     v0 = copy(velocity(x0))
@@ -43,10 +45,10 @@ function LQRSolution(x0::MechanismState{T}, Q, R, Δt, contacts::AbstractVector{
     RigidBodyDynamics.setdirty!(x0)
     K, S = LCPSim.ContactLQR.contact_dlqr(x0, u0, Q, R, Δt, contacts)
     set_velocity!(x0, v0)
-    LQRSolution{T}(Q, R, K, S, copy(Vector(x0)), copy(u0), Δt)
+    LQRSolution{T}(Q, R, K, S, qv(x0), copy(u0), Δt)
 end
 
-(c::LQRSolution)(x) = -c.K * (Vector(x) .- c.x0) .+ c.u0
+(c::LQRSolution)(x) = -c.K * (qv(x) .- c.x0) .+ c.u0
 
 @with_kw mutable struct MPCParams{S1 <: AbstractMathProgSolver, S2 <: AbstractMathProgSolver}
     Δt::Float64 = 0.05
