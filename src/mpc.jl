@@ -50,7 +50,7 @@ function nominal_input(x0::MechanismState{X, M}, contacts::AbstractVector{<:Poin
     u
 end
 
-function lqr_cost(lqr::LQRSolution, 
+function lqr_cost(lqr::LQRSolution,
                   results::AbstractVector{<:LCPSim.LCPUpdate})
     return (sum(
                 (r.state.state .- lqr.x0)' * lqr.Q * (r.state.state .- lqr.x0) +
@@ -102,6 +102,7 @@ function run_mpc(x0::MechanismState,
     ConditionalJuMP.handle_constant_objective!(model)
     try
         solve(model, suppress_warnings=true)
+        # @show model.objVal
     catch e
         println("captured: $e")
         return MPCResults{Float64}(nothing, nothing, warmstart_costs, mip_results)
@@ -114,6 +115,12 @@ function run_mpc(x0::MechanismState,
         )
 
     results_opt_value = getvalue.(results_opt)
+
+    # @show results_opt_value[1].contacts
+    # @show length(results_opt)
+    # @show results_opt_value[1].input
+    # @show configuration(results_opt_value[1].state)
+    # @show velocity(results_opt_value[1].state)
 
     if any(isnan, results_opt_value[1].input)
         return MPCResults{Float64}(nothing, warmstart_costs, mip_results)

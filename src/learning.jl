@@ -108,32 +108,48 @@ function log_interval_net(widths, activation=Flux.elu)
         logy = log(net(x))
         sum(ifelse.(logy .< loglb, loglb .- logy, ifelse.(logy .> logub, logy .- logub, 0 .* logy)))
     end
-    net, loss 
+    net, loss
 end
 
-struct LearnedCost{T, F1, F2} <: Function
+struct LearnedCost{T, F} <: Function
     lqr::LQRSolution{T}
-    net::F1
-    tangent_net::F2
+    net::F
+
+    LearnedCost{T, F}(lqr::LQRSolution{T}, net::F) where {T, F} = new{T, F}(lqr, net)
 end
 
-LearnedCost(lqr::LQRSolution, net) = LearnedCost(lqr, net, FluxExtensions.TangentPropagator(net))
+function LearnedCost(lqr::LQRSolution{T}, net) where T
+    untracked = FluxExtensions.untrack(net)
+    f = x -> untracked(x)[]
+    LearnedCost{T, typeof(f)}(lqr, f)
+end
+
+function matrix_absolute_value(M::AbstractMatrix)
+    fact = eigfact(M)
+    S = fact[:vectors]
+    M = Diagonal(abs.(fact[:values]))
+    S * M * inv(S)
+end
 
 function (c::LearnedCost)(x0::StateLike, results::AbstractVector{<:LCPSim.LCPUpdate})
     lqr = c.lqr
     lqrcost = sum((r.state.state .- lqr.x0)' * lqr.Q * (r.state.state .- lqr.x0) +
                   (r.input .- lqr.u0)' * lqr.R * (r.input .- lqr.u0)
                   for r in results)
-    q0, q = c.tangent_net(qv(x0))
-    lqrcost + Flux.Tracker.data(q0)[] + vec(Flux.Tracker.data(q))' * qv(results[end].state)
+    x = qv(x0)
+    q = ForwardDiff.gradient(c.net, x)
+    Q = ForwardDiff.hessian(c.net, x)
+    Q_psd = matrix_absolute_value(Q)
+    xf = qv(results[end].state)
+    lqrcost + q' * xf + 0.5 * xf' * Q_psd * xf
 end
 
-function evaluate_controller(controller, 
-                             state::MechanismState, 
+function evaluate_controller(controller,
+                             state::MechanismState,
                              env::LCPSim.Environment,
                              lqrsol::LQRSolution,
                              Δt = 0.01,
-                             horizon = 200, 
+                             horizon = 200,
                              solver = GurobiSolver(Gurobi.Env(), OutputFlag=0))
     results = LCPSim.simulate(state, controller, env, Δt, horizon, solver)
     running_cost = sum(results) do result
@@ -147,9 +163,9 @@ function evaluate_controller(controller,
     (running_cost, terminal_cost, configuration(results[end].state), velocity(results[end].state))
 end
 
-function run_evaluations(controller, 
+function run_evaluations(controller,
                          controller_label::AbstractString,
-                         robot::AbstractModel, 
+                         robot::AbstractModel,
                          lqrsol::LQRSolution,
                          q_ranges::AbstractVector{<:Tuple{Integer, AbstractVector}},
                          v_ranges::AbstractVector{<:Tuple{Integer, AbstractVector}};
@@ -159,7 +175,7 @@ function run_evaluations(controller,
     ranges = vcat(getindex.(q_ranges, 2), getindex.(v_ranges, 2))
     q0 = copy(configuration(state))
     v0 = copy(velocity(state))
-    results = DataFrame(controller=String[], 
+    results = DataFrame(controller=String[],
                         q0=Vector{Float64}[],
                         v0=Vector{Float64}[],
                         Δt=Float64[],

@@ -17,12 +17,13 @@ using Base.Iterators: product
 using DataFrames: DataFrame
 using ProgressMeter
 using Gurobi
+using ForwardDiff
 
 export playback,
        MPCParams,
        LQRSolution,
        MPCController
-       
+
 
 const StateLike = Union{MechanismState, LCPSim.StateRecord}
 
@@ -43,7 +44,7 @@ function LQRSolution(x0::MechanismState{T}, Q, R, Δt, contacts::AbstractVector{
     v0 = copy(velocity(x0))
     velocity(x0) .= 0
     RigidBodyDynamics.setdirty!(x0)
-    K, S = LCPSim.ContactLQR.contact_dlqr(x0, u0, Q, R, Δt, contacts)
+    A, B, c, K, S = LCPSim.ContactLQR.contact_dlqr(x0, u0, Q, R, Δt, contacts)
     set_velocity!(x0, v0)
     LQRSolution{T}(Q, R, K, S, qv(x0), copy(u0), Δt)
 end
