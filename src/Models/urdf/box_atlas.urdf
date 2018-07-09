@@ -72,9 +72,9 @@
 
   <link name="pelvis">
     <inertial>
-      <mass value="1.0"/>
-      <origin xyz="0 0 0.3"/>
-      <inertia ixx="0.039" iyy="0.025" izz="0.014" ixy="0.0" ixz="0.0" iyz="0.0"/>
+      <mass value="112.12"/>
+      <origin xyz="0 0 0.4"/>
+      <inertia ixx="6.0" iyy="4.2" izz="1.9" ixy="0.0" ixz="0.0" iyz="0.0"/>
     </inertial>
     <visual>
       <origin xyz="0 0 0.3"/>
@@ -92,9 +92,9 @@
 
   <link name="r_hand_mount_dummy">
     <inertial>
-      <mass value="0.0"/>
-      <origin rpy="0 0 0" xyz="0 0 0"/>
-      <inertia ixx="0.0" iyy="0.0" izz="0.0" ixy="0.0" ixz="0.0" iyz="0.0"/>
+      <mass value="8.285"/>
+      <origin rpy="0 0 0" xyz="0 0 0.2"/>
+      <inertia ixx="0.13" iyy="0.13" izz="0.041" ixy="0.0" ixz="0.0" iyz="0.0"/>
     </inertial>
     <visual>
       <geometry>
@@ -111,9 +111,9 @@
 
   <link name="r_hand_mount">
     <inertial>
-      <mass value="0.05"/>
-      <origin rpy="0 0 0" xyz="0 0 0"/>
-      <inertia ixx="0.039" iyy="0.025" izz="0.014" ixy="0.0" ixz="0.0" iyz="0.0"/>
+      <mass value="7.06"/>
+      <origin rpy="0 0 0" xyz="0 -0.2 0"/>
+      <inertia ixx="0.11" iyy="0.035" izz="0.11" ixy="0.0" ixz="0.0" iyz="0.0"/>
     </inertial>
     <visual>
       <geometry>
@@ -121,7 +121,7 @@
       </geometry>
     </visual>
     <visual>
-      <origin xyz="0 0 -0.2"/>
+      <origin xyz="0 -0.2 0"/>
       <geometry>
         <cylinder radius="0.02" length="0.4"/>
       </geometry>
@@ -138,22 +138,22 @@
     <child link="r_hand_mount_dummy"/>
     <origin xyz="0 -0.3 0.45" rpy="-3.1415926535897 0 0"/>
     <axis xyz="-1 0 0"/>
-    <limit lower="0" upper="1.6708" velocity="100" effort="2"/>
+    <limit lower="0" upper="1.6708" velocity="100" effort="100"/>
   </joint>
 
   <joint name="pelvis_to_r_hand_mount_extension" type="prismatic">
     <parent link="r_hand_mount_dummy"/>
     <child link="r_hand_mount"/>
-    <origin xyz="0 0 0"/>
-    <axis xyz="0 0 1"/>
-    <limit lower="0.4" upper="0.8" velocity="100" effort="2"/>
+    <origin xyz="0 0 0" rpy="1.5707963267948966 0 1.5707963267948966"/>
+    <axis xyz="0 1 0"/>
+    <limit lower="0.4" upper="0.8" velocity="100" effort="500"/>
   </joint>
 
   <link name="l_hand_mount_dummy">
     <inertial>
-      <mass value="0.0"/>
-      <origin rpy="0 0 0" xyz="0 0 0"/>
-      <inertia ixx="0.0" iyy="0.0" izz="0.0" ixy="0.0" ixz="0.0" iyz="0.0"/>
+      <mass value="8.285"/>
+      <origin rpy="0 0 0" xyz="0 0 0.2"/>
+      <inertia ixx="0.13" iyy="0.13" izz="0.041" ixy="0.0" ixz="0.0" iyz="0.0"/>
     </inertial>
     <visual>
       <geometry>
@@ -170,9 +170,9 @@
 
   <link name="l_hand_mount">
     <inertial>
-      <mass value="0.05"/>
-      <origin rpy="0 0 0" xyz="0 0 0"/>
-      <inertia ixx="0.039" iyy="0.025" izz="0.014" ixy="0.0" ixz="0.0" iyz="0.0"/>
+      <mass value="7.06"/>
+      <origin rpy="0 0 0" xyz="0 -0.2 0"/>
+      <inertia ixx="0.11" iyy="0.035" izz="0.11" ixy="0.0" ixz="0.0" iyz="0.0"/>
     </inertial>
     <visual>
       <geometry>
@@ -180,7 +180,7 @@
       </geometry>
     </visual>
     <visual>
-      <origin xyz="0 0 -0.2"/>
+      <origin xyz="0 -0.2 0"/>
       <geometry>
         <cylinder radius="0.02" length="0.4"/>
       </geometry>
@@ -197,22 +197,22 @@
     <child link="l_hand_mount_dummy"/>
     <origin xyz="0 0.3 0.45" rpy="3.1415926535897 0 0"/>
     <axis xyz="1 0 0"/>
-    <limit lower="0" upper="1.6708" velocity="100" effort="2"/>
+    <limit lower="0" upper="1.6708" velocity="100" effort="100"/>
   </joint>
 
   <joint name="pelvis_to_l_hand_mount_extension" type="prismatic">
     <parent link="l_hand_mount_dummy"/>
     <child link="l_hand_mount"/>
-    <origin xyz="0 0 0"/>
-    <axis xyz="0 0 1"/>
-    <limit lower="0.4" upper="0.8" velocity="100" effort="2"/>
+    <origin xyz="0 0 0" rpy="1.5707963267948966 0 -1.5707963267948966"/>
+    <axis xyz="0 1 0"/>
+    <limit lower="0.4" upper="0.8" velocity="100" effort="500"/>
   </joint>
 
   <link name="r_foot_sole_dummy">
     <inertial>
-      <mass value="0.0"/>
-      <origin rpy="0 0 0" xyz="0 0 0"/>
-      <inertia ixx="0.0" iyy="0.0" izz="0.0" ixy="0.0" ixz="0.0" iyz="0.0"/>
+      <mass value="9.1"/>
+      <origin rpy="0 0 0" xyz="0 0 0.2375"/>
+      <inertia ixx="0.194" iyy="0.194" izz="0.0455" ixy="0.0" ixz="0.0" iyz="0.0"/>
     </inertial>
     <visual>
       <geometry>
@@ -229,9 +229,9 @@
 
   <link name="r_foot_sole">
     <inertial>
-      <mass value="0.2"/>
-      <origin rpy="0 0 0" xyz="0 0 0"/>
-      <inertia ixx="0.039" iyy="0.025" izz="0.014" ixy="0.0" ixz="0.0" iyz="0.0"/>
+      <mass value="7.05"/>
+      <origin rpy="0 0 0" xyz="0 0 0.2375"/>
+      <inertia ixx="0.15" iyy="0.15" izz="0.035" ixy="0.0" ixz="0.0" iyz="0.0"/>
     </inertial>
     <visual>
       <geometry>
@@ -239,7 +239,7 @@
       </geometry>
     </visual>
     <visual>
-      <origin xyz="0 0 -0.2375" rpy="0 0 0"/>
+      <origin xyz="0 0 0.2375" rpy="0 0 0"/>
       <geometry>
         <cylinder radius="0.02" length="0.475"/>
       </geometry>
@@ -256,22 +256,22 @@
     <child link="r_foot_sole_dummy"/>
     <origin xyz="0 -0.11 0" rpy="3.1415926535897 0 0"/>
     <axis xyz="-1 0 0"/>
-    <limit lower="-0.05" upper="0.785398" velocity="100" effort="10"/>
+    <limit lower="-0.05" upper="0.785398" velocity="100" effort="530"/>
   </joint>
 
   <joint name="pelvis_to_r_foot_sole_extension" type="prismatic">
     <parent link="r_foot_sole_dummy"/>
     <child link="r_foot_sole"/>
-    <origin xyz="0 0 0"/>
-    <axis xyz="0 0 1"/>
-    <limit lower="0.475" upper="0.95" velocity="100" effort="20"/>
+    <origin xyz="0 0 0" rpy="3.1415926535897 0 0"/>
+    <axis xyz="0 0 -1"/>
+    <limit lower="0.475" upper="0.95" velocity="100" effort="3000"/>
   </joint>
 
   <link name="l_foot_sole_dummy">
     <inertial>
-      <mass value="0.0"/>
-      <origin rpy="0 0 0" xyz="0 0 0"/>
-      <inertia ixx="0.0" iyy="0.0" izz="0.0" ixy="0.0" ixz="0.0" iyz="0.0"/>
+      <mass value="9.1"/>
+      <origin rpy="0 0 0" xyz="0 0 0.2375"/>
+      <inertia ixx="0.194" iyy="0.194" izz="0.0455" ixy="0.0" ixz="0.0" iyz="0.0"/>
     </inertial>
     <visual>
       <geometry>
@@ -288,9 +288,9 @@
 
   <link name="l_foot_sole">
     <inertial>
-      <mass value="0.2"/>
-      <origin rpy="0 0 0" xyz="0 0 0"/>
-      <inertia ixx="0.039" iyy="0.025" izz="0.014" ixy="0.0" ixz="0.0" iyz="0.0"/>
+      <mass value="7.05"/>
+      <origin rpy="0 0 0" xyz="0 0 0.2375"/>
+      <inertia ixx="0.15" iyy="0.15" izz="0.035" ixy="0.0" ixz="0.0" iyz="0.0"/>
     </inertial>
     <visual>
       <geometry>
@@ -298,7 +298,7 @@
       </geometry>
     </visual>
     <visual>
-      <origin xyz="0 0 -0.2375" rpy="0 0 0"/>
+      <origin xyz="0 0 0.2375" rpy="0 0 0"/>
       <geometry>
         <cylinder radius="0.02" length="0.475"/>
       </geometry>
@@ -315,15 +315,15 @@
     <child link="l_foot_sole_dummy"/>
     <origin xyz="0 0.11 0" rpy="3.1415926535897 0 0"/>
     <axis xyz="1 0 0"/>
-    <limit lower="-0.05" upper="0.785398" velocity="100" effort="10"/>
+    <limit lower="-0.05" upper="0.785398" velocity="100" effort="530"/>
   </joint>
 
   <joint name="pelvis_to_l_foot_sole_extension" type="prismatic">
     <parent link="l_foot_sole_dummy"/>
     <child link="l_foot_sole"/>
-    <origin xyz="0 0 0"/>
-    <axis xyz="0 0 1"/>
-    <limit lower="0.475" upper="0.95" velocity="100" effort="20"/>
+    <origin xyz="0 0 0" rpy="3.1415926535897 0 0"/>
+    <axis xyz="0 0 -1"/>
+    <limit lower="0.475" upper="0.95" velocity="100" effort="3000"/>
   </joint>
 
 
