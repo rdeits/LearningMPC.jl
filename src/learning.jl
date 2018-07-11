@@ -138,10 +138,11 @@ function (c::LearnedCost)(x0::StateLike, results::AbstractVector{<:LCPSim.LCPUpd
                   for r in results)
     x = qv(x0)
     q = ForwardDiff.gradient(c.net, x)
-    Q = ForwardDiff.hessian(c.net, x)
-    Q_psd = matrix_absolute_value(Q)
+    # Q = ForwardDiff.hessian(c.net, x)
+    # Q_psd = matrix_absolute_value(Q)
     xf = qv(results[end].state)
-    lqrcost + q' * xf + 0.5 * xf' * Q_psd * xf
+    lqrcost + q' * xf
+    # lqrcost + q' * xf + 0.5 * xf' * Q_psd * xf
 end
 
 function evaluate_controller(controller,
