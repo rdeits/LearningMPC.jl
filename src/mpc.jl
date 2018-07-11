@@ -14,7 +14,7 @@ end
 features(s::Sample) = (s.state, s.mip.objective_bound, s.mip.objective_value)
 
 struct MPCResults{T}
-    lcp_updates::Nullable{Vector{LCPSim.LCPUpdate{T, T, T}}}
+    lcp_updates::Nullable{Vector{LCPSim.LCPUpdate{T, T, T, T}}}
     warmstart_costs::Vector{T}
     mip::MIPResults
 end

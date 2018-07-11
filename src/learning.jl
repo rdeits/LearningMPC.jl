@@ -17,16 +17,16 @@ end
 
 mutable struct PlaybackSink{T} <: MPCSink
     vis::MechanismVisualizer
-    Δt::T
-    last_trajectory::Vector{LCPSim.LCPUpdate{T, T, T}}
+    last_trajectory::Vector{LCPSim.LCPUpdate{T, T, T, T}}
 
-    PlaybackSink(vis::MechanismVisualizer, Δt::T) where {T} = new{T}(vis, Δt, [])
+    PlaybackSink{T}(vis::MechanismVisualizer) where {T} = new{T}(vis, [])
 end
 
 function (p::PlaybackSink)(x::StateLike, results::MPCResults)
     if !isnull(results.lcp_updates)
         p.last_trajectory = get(results.lcp_updates)
-        playback(p.vis, p.last_trajectory, p.Δt)
+        setanimation!(p.vis, p.last_trajectory)
+        sleep(0.1)
     end
 end
 

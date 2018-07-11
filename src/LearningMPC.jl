@@ -5,7 +5,7 @@ module LearningMPC
 using LCPSim
 using LCPSim: LCPUpdate, contact_force, _getvalue
 using RigidBodyDynamics
-using MeshCatMechanisms: MechanismVisualizer, animate
+using MeshCatMechanisms
 using Parameters: @with_kw
 using MathProgBase.SolverInterface: AbstractMathProgSolver
 using JuMP
@@ -65,10 +65,11 @@ using .Models
 include("mpc.jl")
 include("learning.jl")
 
-function playback(vis::MechanismVisualizer, results::AbstractVector{<:LCPUpdate}, Δt = 0.01)
-    ts = cumsum([Δt for r in results])
-    animate(vis, ts, [configuration(result.state) for result in results])
+function MeshCatMechanisms.setanimation!(vis::MechanismVisualizer,
+    results::AbstractVector{<:LCPUpdate}, args...; kw...)
+    ts = cumsum([r.Δt for r in results])
+    qs = [configuration(r.state) for r in results]
+    MeshCatMechanisms.setanimation!(vis, ts, qs, args...; kw...)
 end
-
 
 end
