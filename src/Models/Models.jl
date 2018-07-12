@@ -1,11 +1,14 @@
 module Models
 
 using RigidBodyDynamics
+using RigidBodyDynamics.Contact
 using LCPSim
 using LearningMPC
 using MeshCat
 using MeshCatMechanisms
 using Gurobi
+using MechanismGeometries
+using AtlasRobot
 
 export Hopper,
        CartPole,
@@ -28,11 +31,14 @@ function environment end
 function urdf end
 
 
-MeshCatMechanisms.MechanismVisualizer(h::AbstractModel, v::Visualizer=Visualizer()) = MechanismVisualizer(mechanism(h), URDFVisuals(urdf(h)), v)
+MeshCatMechanisms.MechanismVisualizer(h::AbstractModel, v::Visualizer=Visualizer()) = MechanismVisualizer(mechanism(h), URDFVisuals(h), v)
+
+MechanismGeometries.URDFVisuals(h::AbstractModel) = URDFVisuals(urdf(h))
 
 include("cartpole.jl")
 include("boxatlas.jl")
 include("hopper.jl")
 include("slider.jl")
+include("planar_atlas.jl")
 
 end
