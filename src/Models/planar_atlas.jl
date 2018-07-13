@@ -12,36 +12,38 @@ urdf(b::PlanarAtlas) = planar_atlas_urdf
 
 function PlanarAtlas(variant::Symbol)
     mechanism = parse_urdf(Float64, planar_atlas_urdf)
+    remove_fixed_tree_joints!(mechanism)
     floating_base = findjoint(mechanism, "floating_base")
+    @assert all(floating_base.effort_bounds .== RigidBodyDynamics.Bounds(0., 0.))
+
+    # Add the body definitions to match box atlas
+    modifications = [
+        ("r_hand_mount", "r_hand", RotZYX(π, -π/2, 0), SVector(0, -0.195, 0)),
+        ("l_hand_mount", "l_hand", RotZYX(π, -π/2, 0), SVector(0, -0.195, 0)),
+        ("r_foot_sole", "r_foot", RotZYX(0., 0., 0.), SVector(0.0426, 0, -0.07645)),
+        ("l_foot_sole", "l_foot", RotZYX(0., 0., 0.), SVector(0.0426, 0, -0.07645)),
+    ]
+
+    for (bodyname, basename, rot, trans) in modifications
+        base = findbody(mechanism, basename)
+        frame = CartesianFrame3D(bodyname)
+        inertia = SpatialInertia(frame, SDiagonal(0., 0, 0), SVector(0., 0, 0), 0.0)
+        body = RigidBody(inertia)
+        joint = Joint("$(basename)_to_$(bodyname)", Fixed{Float64}())
+        before_joint = Transform3D(frame_before(joint), default_frame(base), rot, trans)
+        attach!(mechanism, base, body, joint, joint_pose=before_joint)
+    end
+
+    # Increase joint velocity limits because there's no restoring force
+    # to ensure they aren't violated
+    for joint in joints(mechanism)
+        joint.velocity_bounds .= RigidBodyDynamics.Bounds(-1000, 1000)
+    end
+
+    floating_base.position_bounds .= RigidBodyDynamics.Bounds(-10, 10)
+    floating_base.velocity_bounds .= RigidBodyDynamics.Bounds(-1000, 1000)
 
     if variant == :control
-        floating_base.position_bounds .= RigidBodyDynamics.Bounds(-10, 10)
-        floating_base.velocity_bounds .= RigidBodyDynamics.Bounds(-1000, 1000)
-        floating_base.effort_bounds .= RigidBodyDynamics.Bounds(0, 0)
-
-        # Increase joint velocity limits because there's no restoring force
-        # to ensure they aren't violated
-        for joint in joints(mechanism)
-            joint.velocity_bounds .= RigidBodyDynamics.Bounds(-1000, 1000)
-        end
-
-        # Add the body definitions to match box atlas
-        modifications = [
-            ("r_hand_mount", "r_hand", RotZYX(π, -π/2, 0), SVector(0, -0.195, 0)),
-            ("l_hand_mount", "l_hand", RotZYX(π, -π/2, 0), SVector(0, -0.195, 0)),
-            ("r_foot_sole", "r_foot", RotZYX(0., 0., 0.), SVector(0.0426, -0.0017, -0.07645)),
-            ("l_foot_sole", "l_foot", RotZYX(0., 0., 0.), SVector(0.0426, 0.0017, -0.07645)),
-        ]
-
-        for (bodyname, basename, rot, trans) in modifications
-            base = findbody(mechanism, basename)
-            frame = CartesianFrame3D(bodyname)
-            inertia = SpatialInertia(frame, SDiagonal(0., 0, 0), SVector(0., 0, 0), 0.0)
-            body = RigidBody(inertia)
-            joint = Joint("$(basename)_to_$(bodyname)", Fixed{Float64}())
-            before_joint = Transform3D(frame_before(joint), default_frame(base), rot, trans)
-            attach!(mechanism, base, body, joint, joint_pose=before_joint)
-        end
 
         feet = Dict(:left => findbody(mechanism, "l_foot_sole"),
                     :right => findbody(mechanism, "r_foot_sole"))
@@ -101,9 +103,15 @@ function nominal_state(robot::PlanarAtlas)
         knee = findjoint(m, "$(sideprefix)_leg_kny")
         hippitch = findjoint(m, "$(sideprefix)_leg_hpy")
         anklepitch = findjoint(m, "$(sideprefix)_leg_aky")
+        shoulderroll = findjoint(m, "$(sideprefix)_arm_shx")
         set_configuration!(xstar, knee, [kneebend])
         set_configuration!(xstar, hippitch, [-kneebend / 2 + hipbendextra])
         set_configuration!(xstar, anklepitch, [-kneebend / 2 - hipbendextra])
+        if sideprefix == 'r'
+            set_configuration!(xstar, shoulderroll, 1)
+        else
+            set_configuration!(xstar, shoulderroll, -1)
+        end
     end
     set_configuration!(xstar, robot.floating_base, [0; 0.85; 0])
     xstar

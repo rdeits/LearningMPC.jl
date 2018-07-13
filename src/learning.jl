@@ -132,6 +132,7 @@ function matrix_absolute_value(M::AbstractMatrix)
 end
 
 function (c::LearnedCost)(x0::StateLike, results::AbstractVector{<:LCPSim.LCPUpdate})
+    error("needs update to penalize vdot instead of u")
     lqr = c.lqr
     lqrcost = sum((r.state.state .- lqr.x0)' * lqr.Q * (r.state.state .- lqr.x0) +
                   (r.input .- lqr.u0)' * lqr.R * (r.input .- lqr.u0)

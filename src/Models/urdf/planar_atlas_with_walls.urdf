@@ -71,6 +71,7 @@
     <origin rpy="0 0 1.5707963267948966"/>
     <parent link="root"/>
     <child link="floating_base_dummy"/>
+    <limit effort="0"/>
   </joint>
 
   <joint name="floating_base_dummy_to_pelvis" type="fixed">
@@ -531,7 +532,7 @@
       </geometry>
     </visual>
   </link>
-  <joint name="back_bkx" type="revolute">
+  <joint name="back_bkx" type="fixed">
     <origin rpy="0 0 0" xyz="0 0 0.05"/>
     <axis xyz="1 0 0"/>
     <parent link="mtorso"/>
@@ -540,7 +541,7 @@
     <limit effort="300" lower="-0.523599" upper="0.523599" velocity="12"/>
     <safety_controller k_position="100" k_velocity="100" soft_lower_limit="-10.5236" soft_upper_limit="10.5236"/>
   </joint>
-  <joint name="back_bky" type="revolute">
+  <joint name="back_bky" type="fixed">
     <origin rpy="0 0 0" xyz="0 0 0.162"/>
     <axis xyz="0 1 0"/>
     <parent link="ltorso"/>
@@ -549,7 +550,7 @@
     <limit effort="445" lower="-0.219388" upper="0.538783" velocity="9"/>
     <safety_controller k_position="100" k_velocity="100" soft_lower_limit="-10.2194" soft_upper_limit="10.5388"/>
   </joint>
-  <joint name="back_bkz" type="revolute">
+  <joint name="back_bkz" type="fixed">
     <origin rpy="0 0 0" xyz="-0.0125 0 0"/>
     <axis xyz="0 0 1"/>
     <parent link="pelvis"/>
@@ -657,7 +658,7 @@
     <limit effort="840" lower="-1.61234" upper="0.65764" velocity="12"/>
     <safety_controller k_position="100" k_velocity="100" soft_lower_limit="-11.6123" soft_upper_limit="10.6576"/>
   </joint>
-  <joint name="l_leg_hpz" type="revolute">
+  <joint name="l_leg_hpz" type="fixed">
     <origin rpy="0 0 0" xyz="0 0.089 0"/>
     <axis xyz="0 0 1"/>
     <parent link="pelvis"/>
@@ -675,7 +676,7 @@
     <limit effort="890" lower="0" upper="2.35637" velocity="12"/>
     <safety_controller k_position="100" k_velocity="100" soft_lower_limit="-10" soft_upper_limit="12.3564"/>
   </joint>
-  <joint name="neck_ay" type="revolute">
+  <joint name="neck_ay" type="fixed">
     <origin rpy="0 0 0" xyz="0.2546 0 0.6215"/>
     <axis xyz="0 1 0"/>
     <parent link="utorso"/>
@@ -783,7 +784,7 @@
     <limit effort="840" lower="-1.61234" upper="0.65764" velocity="12"/>
     <safety_controller k_position="100" k_velocity="100" soft_lower_limit="-11.6123" soft_upper_limit="10.6576"/>
   </joint>
-  <joint name="r_leg_hpz" type="revolute">
+  <joint name="r_leg_hpz" type="fixed">
     <origin rpy="0 0 0" xyz="0 -0.089 0"/>
     <axis xyz="0 0 1"/>
     <parent link="pelvis"/>

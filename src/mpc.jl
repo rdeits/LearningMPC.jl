@@ -51,15 +51,30 @@ function nominal_input(x0::MechanismState{X, M}, contacts::AbstractVector{<:Poin
 end
 
 function lqr_cost(lqr::LQRSolution,
+                  state::StateLike,
                   results::AbstractVector{<:LCPSim.LCPUpdate})
-    return (sum(
-                (r.state.state .- lqr.x0)' * lqr.Q * (r.state.state .- lqr.x0) +
-                (r.input .- lqr.u0)' * lqr.R * (r.input .- lqr.u0)
-                for r in results)  +
-            (results[end].state.state .- lqr.x0)' * lqr.S * (results[end].state.state .- lqr.x0))
+    cost = sum(1:length(results)) do i
+        r = results[i]
+        if i == 1
+            v̇ = (velocity(r.state) .- velocity(state)) / r.Δt
+        else
+            v̇ = (velocity(r.state) .- velocity(results[i-1].state)) / r.Δt
+        end
+        x̄ = r.state.state .- lqr.x0
+        x̄' * lqr.Q * x̄ + v̇' * lqr.R * v̇
+    end
+    x̄ = results[end].state.state .- lqr.x0
+    cost + x̄' * lqr.S * x̄
 end
 
-(lqr::LQRSolution)(x0::StateLike, results::AbstractVector{<:LCPSim.LCPUpdate}) = lqr_cost(lqr, results)
+#     return (sum(
+#                 (r.state.state .- lqr.x0)' * lqr.Q * (r.state.state .- lqr.x0) +
+#                 (r.input .- lqr.u0)' * lqr.R * (r.input .- lqr.u0)
+#                 for r in results)  +
+#             (results[end].state.state .- lqr.x0)' * lqr.S * (results[end].state.state .- lqr.x0))
+# end
+
+(lqr::LQRSolution)(x0::StateLike, results::AbstractVector{<:LCPSim.LCPUpdate}) = lqr_cost(lqr, x0, results)
 
 function run_warmstarts!(model::Model,
                          results::AbstractVector{<:LCPUpdate},

@@ -68,6 +68,7 @@
     <origin rpy="0 0 1.5707963267948966"/>
     <parent link="root"/>
     <child link="floating_base_dummy"/>
+    <limit effort="0"/>
   </joint>
 
   <link name="pelvis">

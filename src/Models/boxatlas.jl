@@ -46,7 +46,7 @@ function nominal_state(robot::BoxAtlas)
     xstar
 end
 
-function default_costs(robot::BoxAtlas, r=1e-6)
+function default_costs(robot::BoxAtlas, r=1e-4)
     x = nominal_state(robot)
 
     qq = zeros(num_positions(x))
