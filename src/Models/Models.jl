@@ -9,6 +9,8 @@ using MeshCatMechanisms
 using Gurobi
 using MechanismGeometries
 using AtlasRobot
+using Rotations
+using StaticArrays
 
 export Hopper,
        CartPole,

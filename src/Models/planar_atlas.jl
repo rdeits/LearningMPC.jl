@@ -30,7 +30,7 @@ function PlanarAtlas(variant::Symbol)
             ("r_hand_mount", "r_hand", RotZYX(π, -π/2, 0), SVector(0, -0.195, 0)),
             ("l_hand_mount", "l_hand", RotZYX(π, -π/2, 0), SVector(0, -0.195, 0)),
             ("r_foot_sole", "r_foot", RotZYX(0., 0., 0.), SVector(0.0426, -0.0017, -0.07645)),
-            ("l_foot_sole", "l_foot", RotZYX(0., 0., 0.), SVector(0.0426, 0.0017, -0.07645)),   
+            ("l_foot_sole", "l_foot", RotZYX(0., 0., 0.), SVector(0.0426, 0.0017, -0.07645)),
         ]
 
         for (bodyname, basename, rot, trans) in modifications
@@ -55,10 +55,10 @@ function PlanarAtlas(variant::Symbol)
         obstacles = unique([c[3] for c in urdf_env.contacts])
         env = LCPSim.Environment{Float64}([
             (body, Point3D(default_frame(body), 0., 0., 0.), obstacle)
-            for body in Iterators.flatten(values(feet), values(hands))
+            for body in Iterators.flatten((values(feet), values(hands)))
             for obstacle in obstacles])
 
-        LCPSim.filter_contacts!(env, mechanism, 
+        LCPSim.filter_contacts!(env, mechanism,
             Dict(hands[:right] => [],
                  hands[:left] => [wall],
                  feet[:right] => [floor],
@@ -72,7 +72,7 @@ function PlanarAtlas(variant::Symbol)
             face = obstacle.contact_face
             point_in_world = transform(state, face.point, root_frame(mechanism))
             normal_in_world = transform(state, face.outward_normal, root_frame(mechanism))
-            add_environment_primitive!(mechanism, HalfSpace3D(point_in_world, normal_in_world)) 
+            add_environment_primitive!(mechanism, HalfSpace3D(point_in_world, normal_in_world))
         end
         contactmodel = SoftContactModel(hunt_crossley_hertz(k = 500e3), ViscoelasticCoulombModel(0.8, 20e3, 100.))
         for side in (:left, :right)
@@ -100,7 +100,7 @@ function nominal_state(robot::PlanarAtlas)
     for sideprefix in ('l', 'r')
         knee = findjoint(m, "$(sideprefix)_leg_kny")
         hippitch = findjoint(m, "$(sideprefix)_leg_hpy")
-        anklepitch = findjoint(m, "$(sideprefix)_leg_aky")        
+        anklepitch = findjoint(m, "$(sideprefix)_leg_aky")
         set_configuration!(xstar, knee, [kneebend])
         set_configuration!(xstar, hippitch, [-kneebend / 2 + hipbendextra])
         set_configuration!(xstar, anklepitch, [-kneebend / 2 - hipbendextra])
@@ -137,7 +137,7 @@ end
 function LearningMPC.LQRSolution(robot::PlanarAtlas, params::MPCParams=MPCParams(robot), zero_base_x=false)
     xstar = nominal_state(robot)
     Q, R = default_costs(robot)
-    lqrsol = LearningMPC.LQRSolution(xstar, Q, R, params.Δt, 
+    lqrsol = LearningMPC.LQRSolution(xstar, Q, R, params.Δt,
         [Point3D(default_frame(robot.feet[:left]), 0., 0., 0.),
          Point3D(default_frame(robot.feet[:right]), 0., 0., 0.)])
     if zero_base_x
