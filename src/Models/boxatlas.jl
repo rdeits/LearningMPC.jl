@@ -12,7 +12,27 @@ mechanism(b::BoxAtlas) = b.mechanism
 environment(b::BoxAtlas) = b.environment
 urdf(b::BoxAtlas) = box_atlas_urdf
 
-function BoxAtlas()
+function add_rbd_contact_model!(boxatlas::BoxAtlas)
+    mech = mechanism(boxatlas)
+    urdf_env = LCPSim.parse_contacts(mech, urdf(boxatlas), 1.0, :yz)
+    obstacles = unique([c[3] for c in urdf_env.contacts])
+    state = nominal_state(boxatlas)
+    for obstacle in obstacles
+        face = obstacle.contact_face
+        point_in_world = transform(state, face.point, root_frame(mech))
+        normal_in_world = transform(state, face.outward_normal, root_frame(mech))
+        add_environment_primitive!(mech, HalfSpace3D(point_in_world, normal_in_world))
+    end
+    contactmodel = SoftContactModel(hunt_crossley_hertz(k = 500e3), ViscoelasticCoulombModel(1.0, 20e3, 100.))
+    for bodyname in ("r_foot_sole", "l_foot_sole", "r_hand_mount", "l_hand_mount")
+        body = findbody(mech, bodyname)
+        frame = default_frame(body)
+        add_contact_point!(body, ContactPoint(Point3D(frame, 0., 0, 0), contactmodel))
+    end
+    boxatlas
+end
+
+function BoxAtlas(;add_contacts=true)
     mechanism = parse_urdf(Float64, box_atlas_urdf)
     floating_base = findjoint(mechanism, "floating_base")
     floating_base.position_bounds .= RigidBodyDynamics.Bounds(-10, 10)
@@ -25,12 +45,17 @@ function BoxAtlas()
                  :right => findbody(mechanism, "r_hand_mount"))
     floor = findbody(mechanism, "floor")
     wall = findbody(mechanism, "wall")
-    LCPSim.filter_contacts!(env, mechanism, 
+    LCPSim.filter_contacts!(env, mechanism,
         Dict(hands[:right] => [],
              hands[:left] => [wall],
              feet[:right] => [floor],
              feet[:left] => [floor, wall]))
-    BoxAtlas(mechanism, env, floating_base, feet, hands)
+
+    boxatlas = BoxAtlas(mechanism, env, floating_base, feet, hands)
+    if add_contacts
+        add_rbd_contact_model!(boxatlas)
+    end
+    boxatlas
 end
 
 function nominal_state(robot::BoxAtlas)
@@ -46,11 +71,11 @@ function nominal_state(robot::BoxAtlas)
     xstar
 end
 
-function default_costs(robot::BoxAtlas, r=1e-4)
+function default_costs(robot::BoxAtlas, r=1e-6)
     x = nominal_state(robot)
 
     qq = zeros(num_positions(x))
-    qq[configuration_range(x, findjoint(x.mechanism, "floating_base"))] = [10, 100, 800]
+    qq[configuration_range(x, findjoint(x.mechanism, "floating_base"))] = [100, 100, 800]
     qq[configuration_range(x, findjoint(x.mechanism, "pelvis_to_r_hand_mount_extension"))]  .= 0.5
     qq[configuration_range(x, findjoint(x.mechanism, "pelvis_to_l_hand_mount_extension"))]  .= 0.5
     qq[configuration_range(x, findjoint(x.mechanism, "pelvis_to_r_hand_mount_rotation"))]  .= 0.5
@@ -60,7 +85,7 @@ function default_costs(robot::BoxAtlas, r=1e-4)
     qq[configuration_range(x, findjoint(x.mechanism, "pelvis_to_r_foot_sole_rotation"))]  .= 0.1
     qq[configuration_range(x, findjoint(x.mechanism, "pelvis_to_l_foot_sole_rotation"))]  .= 0.1
 
-    qv = fill(0.01, num_velocities(x))
+    qv = fill(0.5, num_velocities(x))
     qv[velocity_range(x, findjoint(x.mechanism, "floating_base"))] = [20, 20, 50]
 
     Q = diagm(vcat(qq, qv))
@@ -100,7 +125,7 @@ end
 function LearningMPC.LQRSolution(robot::BoxAtlas, params::MPCParams=MPCParams(robot), zero_base_x=false)
     xstar = nominal_state(robot)
     Q, R = default_costs(robot)
-    lqrsol = LearningMPC.LQRSolution(xstar, Q, R, params.Δt, 
+    lqrsol = LearningMPC.LQRSolution(xstar, Q, R, params.Δt,
         [Point3D(default_frame(robot.feet[:left]), 0., 0., 0.),
          Point3D(default_frame(robot.feet[:right]), 0., 0., 0.)])
     if zero_base_x

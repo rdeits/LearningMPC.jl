@@ -55,13 +55,14 @@ function lqr_cost(lqr::LQRSolution,
                   results::AbstractVector{<:LCPSim.LCPUpdate})
     cost = sum(1:length(results)) do i
         r = results[i]
-        if i == 1
-            v̇ = (velocity(r.state) .- velocity(state)) / r.Δt
-        else
-            v̇ = (velocity(r.state) .- velocity(results[i-1].state)) / r.Δt
-        end
+        ū = r.input - lqr.u0
+        # if i == 1
+        #     v̇ = (velocity(r.state) .- velocity(state)) / r.Δt
+        # else
+        #     v̇ = (velocity(r.state) .- velocity(results[i-1].state)) / r.Δt
+        # end
         x̄ = r.state.state .- lqr.x0
-        x̄' * lqr.Q * x̄ + v̇' * lqr.R * v̇
+        x̄' * lqr.Q * x̄ + ū' * lqr.R * ū
     end
     x̄ = results[end].state.state .- lqr.x0
     cost + x̄' * lqr.S * x̄
@@ -116,11 +117,11 @@ function run_mpc(x0::MechanismState,
     end
     ConditionalJuMP.handle_constant_objective!(model)
     try
-        solve(model, suppress_warnings=true)
+        JuMP.solve(model, suppress_warnings=true)
         # @show model.objVal
     catch e
         println("captured: $e")
-        return MPCResults{Float64}(nothing, nothing, warmstart_costs, mip_results)
+        return MPCResults{Float64}(nothing, nothing, warmstart_costs, MIPResults(NaN, NaN, NaN))
     end
 
     mip_results = MIPResults(
@@ -166,7 +167,7 @@ function MPCController(model::AbstractModel,
                   (state, results) -> nothing)
 end
 
-function (c::MPCController)(x0::Union{MechanismState, LCPSim.StateRecord})
+function (c::MPCController)(τ::AbstractVector, t::Real, x0::Union{MechanismState, LCPSim.StateRecord})
     set_configuration!(c.scratch_state, configuration(x0))
     set_velocity!(c.scratch_state, velocity(x0))
     results = run_mpc(c.scratch_state,
@@ -178,8 +179,9 @@ function (c::MPCController)(x0::Union{MechanismState, LCPSim.StateRecord})
     set_velocity!(c.scratch_state, velocity(x0))
     c.callback(c.scratch_state, results)
     if !isnull(results.lcp_updates)
-        return first(get(results.lcp_updates)).input
+        τ .= first(get(results.lcp_updates)).input
     else
-        return zeros(num_velocities(c.scratch_state))
+        τ .= 0
     end
+    nothing
 end

@@ -14,7 +14,12 @@ function PlanarAtlas(variant::Symbol)
     mechanism = parse_urdf(Float64, planar_atlas_urdf)
     remove_fixed_tree_joints!(mechanism)
     floating_base = findjoint(mechanism, "floating_base")
-    @assert all(floating_base.effort_bounds .== RigidBodyDynamics.Bounds(0., 0.))
+    replace_joint!(mechanism, floating_base,
+        Joint("floating_base",
+              frame_before(floating_base), frame_after(floating_base),
+              Planar(SVector(0., 1, 0), SVector(0., 0, 1))))
+    floating_base = findjoint(mechanism, "floating_base")
+    floating_base.effort_bounds .= RigidBodyDynamics.Bounds(0., 0)
 
     # Add the body definitions to match box atlas
     modifications = [
@@ -113,7 +118,7 @@ function nominal_state(robot::PlanarAtlas)
             set_configuration!(xstar, shoulderroll, -1)
         end
     end
-    set_configuration!(xstar, robot.floating_base, [0; 0.85; 0])
+    set_configuration!(xstar, robot.floating_base, [0, 0.84, 0])
     xstar
 end
 

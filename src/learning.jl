@@ -68,11 +68,11 @@ function call_with_probability(args::Tuple{Function, Float64}...)
 end
 
 function dagger_controller(mpc_controller, net_controller, p_mpc)
-    x ->  begin
+    (τ, t, x) ->  begin
         if rand() < p_mpc
-            return mpc_controller(x)
+            return mpc_controller(τ, t, x)
         else
-            return net_controller(x)
+            return net_controller(τ, t, x)
         end
     end
 end

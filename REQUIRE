@@ -10,3 +10,9 @@ Flux
 FluxExtensions
 ConditionalJuMP
 Gurobi
+SimpleQP
+QPControl
+MathOptInterface
+OSQP
+RigidBodySim
+DiffEqCallbacks

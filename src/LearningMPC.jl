@@ -18,6 +18,9 @@ using DataFrames: DataFrame
 using ProgressMeter
 using Gurobi
 using ForwardDiff
+using RigidBodySim
+using DiffEqCallbacks
+using Compat
 
 export playback,
        MPCParams,
@@ -49,7 +52,9 @@ function LQRSolution(x0::MechanismState{T}, Q, R, Δt, contacts::AbstractVector{
     LQRSolution{T}(Q, R, K, S, qv(x0), copy(u0), Δt)
 end
 
-(c::LQRSolution)(x) = -c.K * (qv(x) .- c.x0) .+ c.u0
+function (c::LQRSolution)(τ, t, x)
+    τ .= -c.K * (qv(x) .- c.x0) .+ c.u0
+end
 
 @with_kw mutable struct MPCParams{S1 <: AbstractMathProgSolver, S2 <: AbstractMathProgSolver}
     Δt::Float64 = 0.05
@@ -64,6 +69,9 @@ using .Models
 
 include("mpc.jl")
 include("learning.jl")
+include("controlutils.jl")
+include("simpleqp.jl")
+include("mapped_control.jl")
 
 function MeshCatMechanisms.setanimation!(vis::MechanismVisualizer,
     results::AbstractVector{<:LCPUpdate}, args...; kw...)
