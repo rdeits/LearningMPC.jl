@@ -4,30 +4,29 @@
     objective_bound::Float64
 end
 
-struct Sample{T}
-    state::Vector{T}
-    input::Vector{T}
-    warmstart_costs::Vector{T}
-    mip::MIPResults
+struct WarmstartCostRecord{T}
+    lqr::Nullable{T}
+    learned::Nullable{T}
 end
 
-features(s::Sample) = (s.state, s.mip.objective_bound, s.mip.objective_value)
+function WarmstartCostRecord(lqr::T, learned::T) where T <: Real
+    WarmstartCostRecord{T}(Nullable(lqr), Nullable(learned))
+end
+
+struct Sample{NX, NU, T}
+    state::SVector{NX, T}
+    input::SVector{NU, T}
+    x0::SVector{NX, T}
+    u0::SVector{NU, T}
+    warmstart_costs::WarmstartCostRecord{T}
+    mip::MIPResults
+end
 
 struct MPCResults{T}
     lcp_updates::Nullable{Vector{LCPSim.LCPUpdate{T, T, T, T}}}
     warmstart_costs::Vector{T}
     mip::MIPResults
 end
-
-function Sample(x::Union{MechanismState, LCPSim.StateRecord}, r::MPCResults)
-    if isnull(r.lcp_updates)
-        u = fill(NaN, num_velocities(x))
-    else
-        u = get(r.lcp_updates)[1].input
-    end
-    Sample(qv(x), u, r.warmstart_costs, r.mip)
-end
-
 
 function nominal_input(x0::MechanismState{X, M}, contacts::AbstractVector{<:Point3D}=Point3D[]) where {X, M}
     # externalwrenches = BodyDict(BodyID(body) => zero(Wrench{X}) for body in bodies(mechanism))

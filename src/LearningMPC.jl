@@ -21,6 +21,7 @@ using ForwardDiff
 using RigidBodySim
 using DiffEqCallbacks
 using Compat
+using StaticArrays
 
 export playback,
        MPCParams,

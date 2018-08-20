@@ -1,17 +1,44 @@
 abstract type MPCSink <: Function end
 
-struct MPCSampleSink{T} <: MPCSink
-    samples::Vector{Sample{T}}
+struct MPCSampleSink{T, S <: Sample} <: MPCSink
+    samples::Vector{S}
     keep_nulls::Bool
+    lqrsol::LQRSolution{T}
+    lqr_warmstart_index::Int
+    learned_warmstart_index::Int
+end
 
-    MPCSampleSink{T}(keep_nulls=false) where {T} = new{T}([], keep_nulls)
+function MPCSampleSink(; keep_nulls::Bool=nothing,
+                         lqrsol::LQRSolution=nothing,
+                         lqr_warmstart_index::Int=nothing,
+                         learned_warmstart_index::Int=nothing)
+    NX = length(lqrsol.x0)
+    NU = length(lqrsol.u0)
+    T = eltype(lqrsol.x0)
+    MPCSampleSink{T, Sample{NX, NU, T}}([], keep_nulls, lqrsol, lqr_warmstart_index, learned_warmstart_index)
 end
 
 Base.empty!(s::MPCSampleSink) = empty!(s.samples)
 
-function (s::MPCSampleSink)(x::StateLike, results::MPCResults)
+function (s::MPCSampleSink{T, S})(x::StateLike, results::MPCResults) where {T, S <: Sample}
     if s.keep_nulls || !isnull(results.lcp_updates)
-        push!(s.samples, LearningMPC.Sample(x, results))
+        if isnull(results.lcp_updates)
+            u = fill(NaN, num_velocities(x))
+        else
+            u = get(results.lcp_updates)[1].input
+        end
+        state = qv(x)
+        lqr_warmstart_cost = results.warmstart_costs[s.lqr_warmstart_index]
+        learned_warmstart_cost = results.warmstart_costs[s.learned_warmstart_index]
+        warmstart_cost_record = WarmstartCostRecord(lqr_warmstart_cost, learned_warmstart_cost)
+        sample = S(
+            state,
+            u,
+            s.lqrsol.x0,
+            s.lqrsol.u0,
+            warmstart_cost_record,
+            results.mip)
+        push!(s.samples, sample)
     end
 end
 
@@ -93,23 +120,32 @@ function randomize!(x::MechanismState, xstar::MechanismState, σ_q = 0.1, σ_v =
     set_velocity!(x, velocity(xstar) .+ σ_v .* randn(num_velocities(xstar)))
 end
 
-struct Dataset{T}
+struct Dataset{T, S <: Sample}
     lqrsol::LQRSolution{T}
-    training_data::Vector{Sample{T}}
-    validation_data::Vector{Sample{T}}
-    testing_data::Vector{Sample{T}}
+    training_data::Vector{S}
+    validation_data::Vector{S}
+    testing_data::Vector{S}
 
-    Dataset(lqrsol::LQRSolution{T}) where {T} = new{T}(lqrsol, [], [], [])
+    function Dataset(lqrsol::LQRSolution{T}) where {T}
+        NX = length(lqrsol.x0)
+        NU = length(lqrsol.u0)
+        new{T, Sample{NX, NU, T}}(lqrsol, [], [], [])
+    end
 end
 
 function interval_net(widths, activation=Flux.elu; regularization=0.0)
-    net = Chain([Dense(widths[i-1], widths[i], i==length(widths) ? identity : activation) for i in 2:length(widths)]...)
-    loss = let net = net
-        function(x, lb, ub)
+    layers = [Dense(widths[i-1], widths[i], i==length(widths) ? identity : activation) for i in 2:length(widths)]
+    net = Chain(layers...)
+    loss = let net = net, layers = layers
+        function(sample)
+            x = sample.state
+            lb = sample.mip.objective_bound
+            ub = sample.mip.objective_value
             y = net(x)
-            err = sum(ifelse.(y .< lb, lb .- y, ifelse.(y .> ub, y .- ub, 0 .* y)))
+            err = sum(@.(ifelse(y < lb, lb - y, ifelse(y > ub, y - ub, 0 * y))))
+            # TOOD: capture the actual layers for type stability
             if !iszero(regularization)
-                for layer in net.layers
+                for layer in layers
                     err += regularization .* sum(layer.W .^ 2) / length(layer.W)
                     err += regularization .* sum(layer.b .^ 2) / length(layer.b)
                 end
