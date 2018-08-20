@@ -1,8 +1,11 @@
+module MappedControllers
+
 using IKMimic: IKMimicWorkspace, ik_mimic!
 using QPControl
 using RigidBodyDynamics
 using RigidBodyDynamics.Graphs: target, source, TreePath
 using RigidBodyDynamics.PDControl
+export MappedController
 
 struct MappedController{C1 <: QPControl.MPCController, C2 <: MomentumBasedController}
     reduced_model_controller::C1
@@ -55,11 +58,11 @@ function (c::MappedController)(τ::AbstractVector, t::Real, x::Union{AbstractVec
     # end
 
     # Run the reduced model controller
-    SimpleQP.solve!(c.reduced_model_controller.qpmodel)
+    Parametron.solve!(c.reduced_model_controller.qpmodel)
 
     # Extract the state at the end of the current time step from the reduced model controller
-    set_configuration!(reduced_state, SimpleQP.value.(c.reduced_model_controller.qpmodel, c.reduced_model_controller.stages[1].q))
-    set_velocity!(reduced_state, SimpleQP.value.(c.reduced_model_controller.qpmodel, c.reduced_model_controller.stages[1].v))
+    set_configuration!(reduced_state, Parametron.value.(c.reduced_model_controller.qpmodel, c.reduced_model_controller.stages[1].q))
+    set_velocity!(reduced_state, Parametron.value.(c.reduced_model_controller.qpmodel, c.reduced_model_controller.stages[1].v))
 
     # Set desired linear accelerations for the matching bodies in the full model
     for (reduced_model_body, full_model_task) in c.task_map
@@ -76,7 +79,7 @@ function (c::MappedController)(τ::AbstractVector, t::Real, x::Union{AbstractVec
             point_jacobian(reduced_state, path_to_reduced_body, pref),
             path_to_reduced_body,
             pref,
-            SimpleQP.value.(c.reduced_model_controller.qpmodel, c.reduced_model_controller.stages[1].v̇))
+            Parametron.value.(c.reduced_model_controller.qpmodel, c.reduced_model_controller.stages[1].v̇))
         @framecheck p̈ref.frame root_frame(reduced_mechanism)
         @show p̈ref
 
@@ -115,3 +118,4 @@ function (c::MappedController)(τ::AbstractVector, t::Real, x::Union{AbstractVec
     c.full_model_controller(τ, t, x)
 end
 
+end

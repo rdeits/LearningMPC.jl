@@ -10,7 +10,7 @@ Flux
 FluxExtensions
 ConditionalJuMP
 Gurobi
-SimpleQP
+Parametron
 QPControl
 MathOptInterface
 OSQP

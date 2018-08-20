@@ -25,7 +25,7 @@ function Sample(x::Union{MechanismState, LCPSim.StateRecord}, r::MPCResults)
     else
         u = get(r.lcp_updates)[1].input
     end
-    Sample(Vector(x), u, r.warmstart_costs, r.mip)
+    Sample(qv(x), u, r.warmstart_costs, r.mip)
 end
 
 
@@ -53,7 +53,7 @@ end
 function lqr_cost(lqr::LQRSolution,
                   state::StateLike,
                   results::AbstractVector{<:LCPSim.LCPUpdate})
-    cost = sum(1:length(results)) do i
+    cost = sum(eachindex(results)) do i
         r = results[i]
         ū = r.input - lqr.u0
         # if i == 1
@@ -67,13 +67,6 @@ function lqr_cost(lqr::LQRSolution,
     x̄ = results[end].state.state .- lqr.x0
     cost + x̄' * lqr.S * x̄
 end
-
-#     return (sum(
-#                 (r.state.state .- lqr.x0)' * lqr.Q * (r.state.state .- lqr.x0) +
-#                 (r.input .- lqr.u0)' * lqr.R * (r.input .- lqr.u0)
-#                 for r in results)  +
-#             (results[end].state.state .- lqr.x0)' * lqr.S * (results[end].state.state .- lqr.x0))
-# end
 
 (lqr::LQRSolution)(x0::StateLike, results::AbstractVector{<:LCPSim.LCPUpdate}) = lqr_cost(lqr, x0, results)
 

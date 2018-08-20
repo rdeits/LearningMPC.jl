@@ -71,7 +71,9 @@ include("mpc.jl")
 include("learning.jl")
 include("controlutils.jl")
 include("simpleqp.jl")
+using .QPControllers
 include("mapped_control.jl")
+using .MappedControllers
 
 function MeshCatMechanisms.setanimation!(vis::MechanismVisualizer,
     results::AbstractVector{<:LCPUpdate}, args...; kw...)
