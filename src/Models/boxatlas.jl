@@ -71,11 +71,11 @@ function nominal_state(robot::BoxAtlas)
     xstar
 end
 
-function default_costs(robot::BoxAtlas, r=1e-6)
+function default_costs(robot::BoxAtlas, r=1e-5)
     x = nominal_state(robot)
 
     qq = zeros(num_positions(x))
-    qq[configuration_range(x, findjoint(x.mechanism, "floating_base"))] = [100, 100, 800]
+    qq[configuration_range(x, findjoint(x.mechanism, "floating_base"))] = [1, 100, 800]
     qq[configuration_range(x, findjoint(x.mechanism, "pelvis_to_r_hand_mount_extension"))]  .= 0.5
     qq[configuration_range(x, findjoint(x.mechanism, "pelvis_to_l_hand_mount_extension"))]  .= 0.5
     qq[configuration_range(x, findjoint(x.mechanism, "pelvis_to_r_hand_mount_rotation"))]  .= 0.5
@@ -116,7 +116,7 @@ function LearningMPC.MPCParams(robot::BoxAtlas)
         Δt=0.05,
         horizon=10,
         mip_solver=GurobiSolver(Gurobi.Env(), OutputFlag=0,
-            TimeLimit=10,
+            TimeLimit=3,
             MIPGap=1e-2,
             FeasibilityTol=1e-3),
         lcp_solver=GurobiSolver(Gurobi.Env(), OutputFlag=0))
