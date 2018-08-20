@@ -30,25 +30,26 @@ function (p::PlaybackSink)(x::StateLike, results::MPCResults)
     end
 end
 
-function call_each(f::Function...)
-    f1 = first(f)
-    f2 = Base.tail(f)
-    (args...) -> begin
-        result = f1(args...)
-        (x -> x(args...)).(f2)
-        return result
+_call_each!(fs::Tuple{}, args...) = nothing
+
+function _call_each!(fs::Tuple, args...)
+    f = first(fs)
+    f(args...)
+    _call_each!(Base.tail(fs), args...)
+    return nothing
+end
+
+function multiplex!(f::Function...)
+    function (args...)
+        _call_each!(f, args...)
+        return nothing
     end
 end
 
-# import Base: &
-# (&)(s::MPCSink...) = (x, results) -> begin
-#     for sink in s
-#         sink(x, results)
-#     end
-# end
+Base.@deprecate call_each(args...) multiplex!(args...)
 
 function live_viewer(vis::MechanismVisualizer)
-    x -> begin
+    function (τ, t, x)
         set_configuration!(vis, configuration(x))
     end
 end
@@ -67,15 +68,25 @@ function call_with_probability(args::Tuple{Function, Float64}...)
     end
 end
 
-function dagger_controller(mpc_controller, net_controller, p_mpc)
-    (τ, t, x) ->  begin
-        if rand() < p_mpc
-            return mpc_controller(τ, t, x)
-        else
-            return net_controller(τ, t, x)
-        end
+function dagger_controller(mpc_controller, net_controller)
+    function (τ, t, x)
+        mpc_controller(τ, t, x)
+        net_controller(τ, t, x)  # run the MPC controller, then take the
+                                 # action from the net controller
     end
-end
+ end
+
+# function dagger_controller(mpc_controller, net_controller, p_mpc)
+#     (τ, t, x) ->  begin
+#         if rand() < p_mpc
+#             mpc_controller(τ, t, x)
+#             net_controller(τ, t, x)  # run the MPC controller, then take the
+#                                      # action from the net controller
+#         else
+#             net_controller(τ, t, x)
+#         end
+#     end
+# end
 
 function randomize!(x::MechanismState, xstar::MechanismState, σ_q = 0.1, σ_v = 0.5)
     set_configuration!(x, configuration(xstar) .+ σ_q .* randn(num_positions(xstar)))
@@ -91,11 +102,20 @@ struct Dataset{T}
     Dataset(lqrsol::LQRSolution{T}) where {T} = new{T}(lqrsol, [], [], [])
 end
 
-function interval_net(widths, activation=Flux.elu)
+function interval_net(widths, activation=Flux.elu; regularization=0.0)
     net = Chain([Dense(widths[i-1], widths[i], i==length(widths) ? identity : activation) for i in 2:length(widths)]...)
-    loss = (x, lb, ub) -> begin
-        y = net(x)
-        sum(ifelse.(y .< lb, lb .- y, ifelse.(y .> ub, y .- ub, 0 .* y)))
+    loss = let net = net
+        function(x, lb, ub)
+            y = net(x)
+            err = sum(ifelse.(y .< lb, lb .- y, ifelse.(y .> ub, y .- ub, 0 .* y)))
+            if !iszero(regularization)
+                for layer in net.layers
+                    err += regularization .* sum(layer.W .^ 2) / length(layer.W)
+                    err += regularization .* sum(layer.b .^ 2) / length(layer.b)
+                end
+            end
+            err
+        end
     end
     net, loss
 end
@@ -132,7 +152,6 @@ function matrix_absolute_value(M::AbstractMatrix)
 end
 
 function (c::LearnedCost)(x0::StateLike, results::AbstractVector{<:LCPSim.LCPUpdate})
-    error("needs update to penalize vdot instead of u")
     lqr = c.lqr
     lqrcost = sum((r.state.state .- lqr.x0)' * lqr.Q * (r.state.state .- lqr.x0) +
                   (r.input .- lqr.u0)' * lqr.R * (r.input .- lqr.u0)
