@@ -133,24 +133,36 @@ struct Dataset{T, S <: Sample}
     end
 end
 
+regularize(regularization::Real) = regularization * 0.0
+
+function regularize(regularization::Real, layer::Flux.Dense, others::Vararg{<:Flux.Dense, N}) where N
+    (regularization .* sum(layer.W .^ 2) / length(layer.W) +  
+     regularization .* sum(layer.b .^ 2) / length(layer.b) + 
+     regularize(regularization, others...))
+end
+
+function interval_error(y, lb, ub)
+    sum(@.(ifelse(y < lb, lb - y, ifelse(y > ub, y - ub, 0 * y))))
+end
+
+@noinline function _interval_net_loss(net, ::Type{Ty}) where {Ty}
+    function(sample)
+        x = sample.state
+        lb = sample.mip.objective_bound
+        ub = sample.mip.objective_value
+        y::Ty = net(x)
+        interval_error(y, lb, ub)
+    end
+end
+
 function interval_net(widths, activation=Flux.elu; regularization=0.0)
-    layers = [Dense(widths[i-1], widths[i], i==length(widths) ? identity : activation) for i in 2:length(widths)]
+    layers = Tuple([Dense(widths[i-1], widths[i], i==length(widths) ? identity : activation) for i in 2:length(widths)])
     net = Chain(layers...)
-    loss = let net = net, layers = layers
+    Ty = typeof(net(zeros(first(widths))))
+    sample_loss = _interval_net_loss(net, Ty)
+    loss = let sample_loss = sample_loss, regularization = regularization, layers = layers
         function(sample)
-            x = sample.state
-            lb = sample.mip.objective_bound
-            ub = sample.mip.objective_value
-            y = net(x)
-            err = sum(@.(ifelse(y < lb, lb - y, ifelse(y > ub, y - ub, 0 * y))))
-            # TOOD: capture the actual layers for type stability
-            if !iszero(regularization)
-                for layer in layers
-                    err += regularization .* sum(layer.W .^ 2) / length(layer.W)
-                    err += regularization .* sum(layer.b .^ 2) / length(layer.b)
-                end
-            end
-            err
+            sample_loss(sample) + regularize(regularization, layers...)
         end
     end
     net, loss
@@ -201,23 +213,74 @@ function (c::LearnedCost)(x0::StateLike, results::AbstractVector{<:LCPSim.LCPUpd
     # lqrcost + q' * xf + 0.5 * xf' * Q_psd * xf
 end
 
+function _mimic_net_loss(net, ::Type{Ty}) where {Ty}
+    function (sample)
+        x = sample.state
+        u = sample.input
+        y::Ty = net(x)
+        Flux.mse(y, u)
+    end
+end
+
+function mimic_net(widths, activation=Flux.elu; regularization=0.0)
+    layers = Tuple([Dense(widths[i-1], widths[i], i==length(widths) ? identity : activation) for i in 2:length(widths)])
+    net = Chain(layers...)
+    Ty = typeof(net(zeros(first(widths))))
+    sample_loss = _mimic_net_loss(net, Ty)
+    loss = let sample_loss = sample_loss, regularization = regularization, layers = layers
+        function(sample)
+            sample_loss(sample) + regularize(regularization, layers...)
+        end
+    end
+    net, loss
+end
+
+
 function evaluate_controller(controller,
                              state::MechanismState,
-                             env::LCPSim.Environment,
-                             lqrsol::LQRSolution,
+                             lqrsol::LQRSolution;
                              Δt = 0.01,
-                             horizon = 200,
-                             solver = GurobiSolver(Gurobi.Env(), OutputFlag=0))
-    results = LCPSim.simulate(state, controller, env, Δt, horizon, solver)
-    running_cost = sum(results) do result
-        δx = qv(result.state) - lqrsol.x0
-        δu = result.input - lqrsol.u0
-        δx' * lqrsol.Q * δx + δu' * lqrsol.R * δu
+                             duration::Float64 = 1.0,
+                             mvis::Union{MechanismVisualizer, Void} = nothing)
+
+    running_cost::Float64 = 0.0
+    t_prev::Float64 = 0.0
+    cost_tracking_controller = let controller=controller, 
+                                   lqrsol=lqrsol, 
+                                   x̄ = qv(state), 
+                                   ū = zeros(num_velocities(state))
+        function(τ, t, state)
+            x̄ .= qv(state) .- lqrsol.x0
+            controller(τ, t, state)
+            ū .= τ .- lqrsol.u0
+            dt = t - t_prev
+            t_prev = t
+            running_cost += dt * (x̄' * lqrsol.Q * x̄ + ū' * lqrsol.R * ū)
+        end
     end
-    δxf = qv(results[end].state) - lqrsol.x0
-    terminal_cost = δxf' * lqrsol.S * δxf
-    @assert (terminal_cost + running_cost) ≈ lqr_cost(lqrsol, results)
-    (running_cost, terminal_cost, configuration(results[end].state), velocity(results[end].state))
+
+    problem = LearningMPC.simulation_problem(state, cost_tracking_controller, Δt, duration)
+    solution = RigidBodySim.solve(problem, Tsit5(), abs_tol=1e-8, dt=1e-6)
+    if mvis !== nothing
+        setanimation!(mvis, solution)
+        sleep(0.01)
+    end
+
+    copy!(state, solution.u[end])
+    x̄ = qv(state) .- lqrsol.x0
+    terminal_cost = x̄' * lqrsol.S * x̄
+
+    (running_cost, terminal_cost, configuration(state), velocity(state))
+    # results = LCPSim.simulate(state, controller, env, Δt, horizon, solver)
+    # running_cost = sum(results) do result
+    #     δx = qv(result.state) - lqrsol.x0
+    #     δu = result.input - lqrsol.u0
+    #     δx' * lqrsol.Q * δx + δu' * lqrsol.R * δu
+    # end
+    # δxf = qv(results[end].state) - lqrsol.x0
+    # terminal_cost = δxf' * lqrsol.S * δxf
+    # @assert (terminal_cost + running_cost) ≈ lqr_cost(lqrsol, results)
+    # (running_cost, terminal_cost, configuration(results[end].state), velocity(results[end].state))
 end
 
 function run_evaluations(controller,
@@ -226,7 +289,7 @@ function run_evaluations(controller,
                          lqrsol::LQRSolution,
                          q_ranges::AbstractVector{<:Tuple{Integer, AbstractVector}},
                          v_ranges::AbstractVector{<:Tuple{Integer, AbstractVector}};
-                         Δt = 0.01, horizon = 200, solver = GurobiSolver(Gurobi.Env(), OutputFlag=0))
+                         Δt = 0.01, horizon = 200, mvis::Union{MechanismVisualizer, Void} = nothing)
     x_nominal = nominal_state(robot)
     state = MechanismState(mechanism(robot))
     ranges = vcat(getindex.(q_ranges, 2), getindex.(v_ranges, 2))
@@ -242,6 +305,7 @@ function run_evaluations(controller,
                         running_cost=Float64[],
                         terminal_cost=Float64[])
     @showprogress for evaluation_values in product(ranges...)
+        zero!(state)
         q0 .= configuration(x_nominal)
         v0 .= velocity(x_nominal)
         for i in 1:length(q_ranges)
@@ -252,8 +316,8 @@ function run_evaluations(controller,
         end
         set_configuration!(state, q0)
         set_velocity!(state, v0)
-        running_cost, terminal_cost, qf, vf = evaluate_controller(controller, state, environment(robot),
-                                           lqrsol, Δt, horizon, solver)
+        running_cost, terminal_cost, qf, vf = evaluate_controller(
+            controller, state, lqrsol; Δt=Δt, duration=horizon * Δt, mvis=mvis)
         push!(results, [controller_label, q0, v0, Δt, horizon, qf, vf, running_cost, terminal_cost])
     end
     results
