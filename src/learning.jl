@@ -168,6 +168,61 @@ function interval_net(widths, activation=Flux.elu; regularization=0.0)
     net, loss
 end
 
+function _upperbound_error(y, lb, ub)
+    sum(@.(ifelse(y <= ub, ub - y, y - ub)))
+end
+
+@noinline function _upperbound_net_loss(net, ::Type{Ty}) where {Ty}
+    function(sample)
+        x = sample.state
+        lb = sample.mip.objective_bound
+        ub = sample.mip.objective_value
+        y::Ty = net(x)
+        _upperbound_error(y, lb, ub)
+    end
+end
+
+function upperbound_net(widths, activation=Flux.elu; regularization=0.0)
+    layers = Tuple([Dense(widths[i-1], widths[i], i==length(widths) ? identity : activation) for i in 2:length(widths)])
+    net = Chain(layers...)
+    Ty = typeof(net(zeros(first(widths))))
+    sample_loss = _upperbound_net_loss(net, Ty)
+    loss = let sample_loss = sample_loss, regularization = regularization, layers = layers
+        function(sample)
+            sample_loss(sample) + regularize(regularization, layers...)
+        end
+    end
+    net, loss
+end
+
+function _lowerbound_error(y, lb, ub)
+    sum(@.(ifelse(y <= lb, lb - y, y - lb)))
+end
+
+@noinline function _lowerbound_net_loss(net, ::Type{Ty}) where {Ty}
+    function(sample)
+        x = sample.state
+        lb = sample.mip.objective_bound
+        ub = sample.mip.objective_value
+        y::Ty = net(x)
+        _lowerbound_error(y, lb, ub)
+    end
+end
+
+function lowerbound_net(widths, activation=Flux.elu; regularization=0.0)
+    layers = Tuple([Dense(widths[i-1], widths[i], i==length(widths) ? identity : activation) for i in 2:length(widths)])
+    net = Chain(layers...)
+    Ty = typeof(net(zeros(first(widths))))
+    sample_loss = _lowerbound_net_loss(net, Ty)
+    loss = let sample_loss = sample_loss, regularization = regularization, layers = layers
+        function(sample)
+            sample_loss(sample) + regularize(regularization, layers...)
+        end
+    end
+    net, loss
+end
+
+
 function log_interval_net(widths, activation=Flux.elu)
     net = Chain([Dense(widths[i-1], widths[i], i==length(widths) ? exp : activation) for i in 2:length(widths)]...)
     loss = (x, lb, ub) -> begin
