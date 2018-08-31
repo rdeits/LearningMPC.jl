@@ -97,9 +97,15 @@ end
 
 function dagger_controller(mpc_controller, net_controller)
     function (τ, t, x)
-        mpc_controller(τ, t, x)
-        net_controller(τ, t, x)  # run the MPC controller, then take the
-                                 # action from the net controller
+        if rand(Bool)
+            mpc_controller(τ, t, x)
+            net_controller(τ, t, x)  # run the MPC controller, then take the
+                                     # action from the net controller
+        else
+            net_controller(τ, t, x)
+            mpc_controller(τ, t, x)  # run the net controller, then take the
+                                     # action from the MPC controller
+        end
     end
  end
 
@@ -141,85 +147,76 @@ function regularize(regularization::Real, layer::Flux.Dense, others::Vararg{<:Fl
      regularize(regularization, others...))
 end
 
-function interval_error(y, lb, ub)
-    sum(@.(ifelse(y < lb, lb - y, ifelse(y > ub, y - ub, 0 * y))))
+function interval_error(y, lb, ub, penalty)
+    sum(@.(ifelse(y < lb, penalty(lb - y), ifelse(y > ub, penalty(y - ub), 0 * y))))
 end
 
-@noinline function _interval_net_loss(net, ::Type{Ty}) where {Ty}
+@noinline function _interval_net_loss(net, ::Type{Ty}, penalty) where {Ty}
     function(sample)
         x = sample.state
         lb = sample.mip.objective_bound
         ub = sample.mip.objective_value
         y::Ty = net(x)
-        interval_error(y, lb, ub)
+        interval_error(y, lb, ub, penalty)
     end
 end
 
-function interval_net(widths, activation=Flux.elu; regularization=0.0)
+function _value_function_net(widths, sample_loss, activation, regularization, penalty)
     layers = Tuple([Dense(widths[i-1], widths[i], i==length(widths) ? identity : activation) for i in 2:length(widths)])
     net = Chain(layers...)
     Ty = typeof(net(zeros(first(widths))))
-    sample_loss = _interval_net_loss(net, Ty)
-    loss = let sample_loss = sample_loss, regularization = regularization, layers = layers
-        function(sample)
-            sample_loss(sample) + regularize(regularization, layers...)
+    s = sample_loss(net, Ty, penalty)
+    if iszero(regularization)
+        loss = s
+    else
+        loss = let s = s, regularization = regularization, layers = layers
+            function (sample)
+                s(sample) + regularize(regularization, layers...)
+            end
         end
     end
     net, loss
 end
 
-function _upperbound_error(y, lb, ub)
-    sum(@.(ifelse(y <= ub, ub - y, y - ub)))
+
+function interval_net(widths, activation=Flux.elu; regularization=0.0, penalty=identity)
+    _value_function_net(widths, _interval_net_loss, activation, regularization, penalty)
 end
 
-@noinline function _upperbound_net_loss(net, ::Type{Ty}) where {Ty}
+function _upperbound_error(y, lb, ub, penalty)
+    sum(@.(ifelse(y <= ub, penalty(ub - y), penalty(y - ub))))
+end
+
+@noinline function _upperbound_net_loss(net, ::Type{Ty}, penalty) where {Ty}
     function(sample)
         x = sample.state
         lb = sample.mip.objective_bound
         ub = sample.mip.objective_value
         y::Ty = net(x)
-        _upperbound_error(y, lb, ub)
+        _upperbound_error(y, lb, ub, penalty)
     end
 end
 
-function upperbound_net(widths, activation=Flux.elu; regularization=0.0)
-    layers = Tuple([Dense(widths[i-1], widths[i], i==length(widths) ? identity : activation) for i in 2:length(widths)])
-    net = Chain(layers...)
-    Ty = typeof(net(zeros(first(widths))))
-    sample_loss = _upperbound_net_loss(net, Ty)
-    loss = let sample_loss = sample_loss, regularization = regularization, layers = layers
-        function(sample)
-            sample_loss(sample) + regularize(regularization, layers...)
-        end
-    end
-    net, loss
+function upperbound_net(widths, activation=Flux.elu; regularization=0.0, penalty=identity)
+    _value_function_net(widths, _upperbound_net_loss, activation, regularization, penalty)
 end
 
-function _lowerbound_error(y, lb, ub)
-    sum(@.(ifelse(y <= lb, lb - y, y - lb)))
+function _lowerbound_error(y, lb, ub, penalty)
+    sum(@.(ifelse(y <= lb, penalty(lb - y), penalty(y - lb))))
 end
 
-@noinline function _lowerbound_net_loss(net, ::Type{Ty}) where {Ty}
+@noinline function _lowerbound_net_loss(net, ::Type{Ty}, penalty) where {Ty}
     function(sample)
         x = sample.state
         lb = sample.mip.objective_bound
         ub = sample.mip.objective_value
         y::Ty = net(x)
-        _lowerbound_error(y, lb, ub)
+        _lowerbound_error(y, lb, ub, penalty)
     end
 end
 
-function lowerbound_net(widths, activation=Flux.elu; regularization=0.0)
-    layers = Tuple([Dense(widths[i-1], widths[i], i==length(widths) ? identity : activation) for i in 2:length(widths)])
-    net = Chain(layers...)
-    Ty = typeof(net(zeros(first(widths))))
-    sample_loss = _lowerbound_net_loss(net, Ty)
-    loss = let sample_loss = sample_loss, regularization = regularization, layers = layers
-        function(sample)
-            sample_loss(sample) + regularize(regularization, layers...)
-        end
-    end
-    net, loss
+function lowerbound_net(widths, activation=Flux.elu; regularization=0.0, penalty=identity)
+    _value_function_net(widths, _lowerbound_net_loss, activation, regularization, penalty)
 end
 
 
