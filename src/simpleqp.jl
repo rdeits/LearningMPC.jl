@@ -32,7 +32,7 @@ function addcost!(mpc::MPCController, lqr::LQRSolution)
         objective = @expression objective + x̄' * lqr.Q * x̄ + ū' * lqr.R * ū
     end
     x̄ = vcat(mpc.stages[end].q, mpc.stages[end].v) - lqr.x0
-    objective = @expression objective + x̄' * lqr.Q * x̄
+    objective = @expression objective + x̄' * lqr.S * x̄
     @objective(mpc.qpmodel, Minimize, objective)
 end
 
