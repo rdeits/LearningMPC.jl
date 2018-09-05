@@ -6,16 +6,19 @@ struct MPCSampleSink{T, S <: Sample} <: MPCSink
     lqrsol::LQRSolution{T}
     lqr_warmstart_index::Int
     learned_warmstart_index::Int
+    parameters::Vector{T}
 end
 
 function MPCSampleSink(; keep_nulls::Bool=nothing,
                          lqrsol::LQRSolution=nothing,
                          lqr_warmstart_index::Int=nothing,
-                         learned_warmstart_index::Int=nothing)
+                         learned_warmstart_index::Int=nothing,
+                         parameters::Vector=Float64[])
     NX = length(lqrsol.x0)
     NU = length(lqrsol.u0)
+    NP = length(parameters)
     T = eltype(lqrsol.x0)
-    MPCSampleSink{T, Sample{NX, NU, T}}([], keep_nulls, lqrsol, lqr_warmstart_index, learned_warmstart_index)
+    MPCSampleSink{T, Sample{NX, NU, NP, T}}([], keep_nulls, lqrsol, lqr_warmstart_index, learned_warmstart_index, parameters)
 end
 
 Base.empty!(s::MPCSampleSink) = empty!(s.samples)
@@ -37,7 +40,8 @@ function (s::MPCSampleSink{T, S})(x::StateLike, results::MPCResults) where {T, S
             s.lqrsol.x0,
             s.lqrsol.u0,
             warmstart_cost_record,
-            results.mip)
+            results.mip,
+            s.parameters)
         push!(s.samples, sample)
     end
 end
@@ -132,10 +136,8 @@ struct Dataset{T, S <: Sample}
     validation_data::Vector{S}
     testing_data::Vector{S}
 
-    function Dataset(lqrsol::LQRSolution{T}) where {T}
-        NX = length(lqrsol.x0)
-        NU = length(lqrsol.u0)
-        new{T, Sample{NX, NU, T}}(lqrsol, [], [], [])
+    function Dataset(::Type{S}, lqrsol::LQRSolution{T}) where {T, S <: Sample}
+        new{T, S}(lqrsol, [], [], [])
     end
 end
 
@@ -147,16 +149,20 @@ function regularize(regularization::Real, layer::Flux.Dense, others::Vararg{<:Fl
      regularize(regularization, others...))
 end
 
+function _predict(net, sample, ::Type{Ty}) where {Ty}
+    x = vcat(sample.state, sample.parameters)
+    y::Ty = net(x)
+end
+
 function interval_error(y, lb, ub, penalty)
     sum(@.(ifelse(y < lb, penalty(lb - y), ifelse(y > ub, penalty(y - ub), 0 * y))))
 end
 
 @noinline function _interval_net_loss(net, ::Type{Ty}, penalty) where {Ty}
     function(sample)
-        x = sample.state
         lb = sample.mip.objective_bound
         ub = sample.mip.objective_value
-        y::Ty = net(x)
+        y::Ty = _predict(net, sample, Ty)
         interval_error(y, lb, ub, penalty)
     end
 end
@@ -189,10 +195,9 @@ end
 
 @noinline function _upperbound_net_loss(net, ::Type{Ty}, penalty) where {Ty}
     function(sample)
-        x = sample.state
         lb = sample.mip.objective_bound
         ub = sample.mip.objective_value
-        y::Ty = net(x)
+        y::Ty = _predict(net, sample, Ty)
         _upperbound_error(y, lb, ub, penalty)
     end
 end
@@ -207,10 +212,9 @@ end
 
 @noinline function _lowerbound_net_loss(net, ::Type{Ty}, penalty) where {Ty}
     function(sample)
-        x = sample.state
         lb = sample.mip.objective_bound
         ub = sample.mip.objective_value
-        y::Ty = net(x)
+        y::Ty = _predict(net, sample, Ty)
         _lowerbound_error(y, lb, ub, penalty)
     end
 end
@@ -220,16 +224,16 @@ function lowerbound_net(widths, activation=Flux.elu; regularization=0.0, penalty
 end
 
 
-function log_interval_net(widths, activation=Flux.elu)
-    net = Chain([Dense(widths[i-1], widths[i], i==length(widths) ? exp : activation) for i in 2:length(widths)]...)
-    loss = (x, lb, ub) -> begin
-        loglb = log(lb)
-        logub = log(ub)
-        logy = log(net(x))
-        sum(ifelse.(logy .< loglb, loglb .- logy, ifelse.(logy .> logub, logy .- logub, 0 .* logy)))
-    end
-    net, loss
-end
+# function log_interval_net(widths, activation=Flux.elu)
+#     net = Chain([Dense(widths[i-1], widths[i], i==length(widths) ? exp : activation) for i in 2:length(widths)]...)
+#     loss = (x, lb, ub) -> begin
+#         loglb = log(lb)
+#         logub = log(ub)
+#         logy = log(net(x))
+#         sum(ifelse.(logy .< loglb, loglb .- logy, ifelse.(logy .> logub, logy .- logub, 0 .* logy)))
+#     end
+#     net, loss
+# end
 
 struct LearnedCost{T, F} <: Function
     lqr::LQRSolution{T}
@@ -267,9 +271,8 @@ end
 
 function _mimic_net_loss(net, ::Type{Ty}) where {Ty}
     function (sample)
-        x = sample.state
         u = sample.input
-        y::Ty = net(x)
+        y::Ty = _predict(net, sample, Ty)
         Flux.mse(y, u)
     end
 end

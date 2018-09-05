@@ -13,13 +13,14 @@ function WarmstartCostRecord(lqr::T, learned::T) where T <: Real
     WarmstartCostRecord{T}(Nullable(lqr), Nullable(learned))
 end
 
-struct Sample{NX, NU, T}
+struct Sample{NX, NU, NP, T}
     state::SVector{NX, T}
     input::SVector{NU, T}
     x0::SVector{NX, T}
     u0::SVector{NU, T}
     warmstart_costs::WarmstartCostRecord{T}
     mip::MIPResults
+    parameters::SVector{NP, T}
 end
 
 struct MPCResults{T}
