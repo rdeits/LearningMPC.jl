@@ -37,6 +37,7 @@ MeshCatMechanisms.MechanismVisualizer(h::AbstractModel, v::Visualizer=Visualizer
 
 MechanismGeometries.URDFVisuals(h::AbstractModel) = URDFVisuals(urdf(h))
 
+include("param_joints.jl")
 include("cartpole.jl")
 include("boxatlas.jl")
 include("hopper.jl")
